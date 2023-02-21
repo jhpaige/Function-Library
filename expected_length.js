@@ -1,4 +1,5 @@
-// Inputs and outputs defined at bottom of page. Finds the average route length to touch checkpoints (*) in given field of (.) while avoiding (#) and not going out of bounds.
+// Inputs and outputs defined at bottom of page. Finds the average route length to touch checkpoints (*)
+// in given rectangular field of (.) while avoiding (#) and not going out of bounds.
 
 const expected_length = async (field, checkpointTot) => {
   // Find size of field and define acceptable range
@@ -17,25 +18,43 @@ const expected_length = async (field, checkpointTot) => {
     return true;
   }
 
-  // Store each index that isn't a # in queue
-  for (let i = 0; i < height; i++) {
-    for (let j = 0; j < width; j++) {
-      if (field[i][j] != '#') queue.push([i, j]);
+  const isPalindrome = (dataArr) => {
+    for (let i = 0; i < Math.ceil(dataArr / 2); i++) {
+      // Returns false if pair doesn't match
+      if (dataArr[i] !== dataArr[dataArr.length - 1 - i]) return false;
     }
+    // Returns true if no incongruencies found between start and end of function
+    return true;
   }
-  // queue.push([0,0]);
+
+  const isPositionLoop = (valArray) => {
+    let maxLoopHalf = Math.floor(valArray.length / 2);
+    for (let i = 3; i < maxLoopHalf; i++) {
+      for (let j = valArray.length - 1; j > valArray.length - 1 - i; j--) {
+        if (isPalindrome(valArray.slice(j))) return true;;
+      }
+    }
+    return false;
+  }
+  // Store each index that isn't a # in queue
+  // for (let i = 0; i < height; i++) {
+  //   for (let j = 0; j < width; j++) {
+  //     if (field[i][j] != '#') queue.push([i, j]);
+  //   }
+  // }
+  queue.push([0,0]);
 
   // Start at each queue value and move in every possible direction except backwards, #, or not in acceptable range (store previous position)
   let checkedPositions = [];
   // terminating only when '#' is found, track each * along the way
   while (queue.length > 0) {
-    checkedPositions = {};
+    checkedPositions = [];
     // If path found has checkpoint number inputted, save length - 1 to possible route lengths
     const nextPath = async (currPosition, pathLen = 0, checkpointsPassed = 0) => {
       if (pathLen == 0) console.log('start', currPosition);
       console.log('currPosition', currPosition);
       console.log('pathLen', pathLen);
-      checkedPositions[currPosition[0].toString() + currPosition[1].toString()] = 1;
+      checkedPositions.push(currPosition[0].toString() + currPosition[1].toString());
       if (field[currPosition[0]][currPosition[1]].localeCompare('*') == 0) {
         checkpointsPassed++;
       };
@@ -53,8 +72,8 @@ const expected_length = async (field, checkpointTot) => {
 
       const callOnIndex = async (checkingIdx, currPathLen, currCheckpointsPassed) => {
         const idxAsString = checkingIdx[0].toString() + checkingIdx[1].toString();
-        if (!checkedPositions[idxAsString]) {
-          checkedPositions[idxAsString] = 1;
+        checkedPositions.push(idxAsString)
+        if (!isPositionLoop(checkedPositions)) {
           if (currCheckpointsPassed < checkpointTot && valid_value(field, checkingIdx, currPosition)) {
             currPathLen++;
             await nextPath(checkingIdx, currPathLen, currCheckpointsPassed);
