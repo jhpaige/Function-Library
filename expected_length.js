@@ -2,28 +2,49 @@
 // in given rectangular field of (.) while avoiding (#) and not going out of bounds.
 
 const expected_length = async (field, checkpointTot) => {
+
   // Variables to store field height and width
   const height = field.length;
   const width = field[0].length;
 
-  // Variable to store possible path lengths
-  const possibleLengths = [];
-
-  // Array to store all checkpoints to start at
-  let queue = {};
+  // Parent object to store path checkpoints and their distances
+  let paths = {};
   for (let i = 0; i < height; i++) {
     for (let j = 0; j < width; j++) {
-      if (field[i][j] == '*') queue[`${i},${j}`] = 0;
+      if (field[i][j] == '*') paths[`(${i},${j})`] = 0;
     }
   }
-  // let queue = {'0,0': 0};
-  // Array to store all visited checkpoints and checkpoints they touched
-  const deQueued = {};
-  // Create new nodes going in every possible direction at each checkpoint on their initiation.
+
+  // Finds shortest valid distance between points in inputted object, returns object with those distances
+  const findDists = (pointArray, checkpointsObj) => {
+    // String to store current main point and sub point
+    let mainPoint = ''; let subPoint = ''; let mainArr = []; let subArr = [];
+    for (let i = 0; i < pointArray.length; i++) {
+      // Sets mainpoint value and assigns empty object to mainpoint in checkpoints object
+      mainPoint = pointArray[i].substring(1).slice(0, -1);
+      checkpointsObj[mainPoint] = {};
+      for (let j = 0; j < pointArray.length; j++) {
+        subPoint = pointArray[j].substring(1).slice(0, -1);
+        // If the points aren't equal the shortest distance between the two points is found and saved to checkpointsObj
+        if (i != j) {
+          mainArr = mainPoint.split(',').map(val => Number(val));
+          subArr = subPoint.split(',').map(val => Number(val));
+          if (!checkpointsObj[subPoint] || !checkpointsObj[subPoint][mainPoint]) {
+            checkpointsObj[mainPoint][subPoint] = newNode(mainArr, 0, null, mainArr, subArr);
+          }
+          else {
+            checkpointsObj[mainPoint][subPoint] = checkpointsObj[subPoint][mainPoint];
+          }
+        }
+      }
+    }
+    return checkpointsObj;
+  }
+
+  // Creates finding node that seeks a point
   // If pathlength and redundantChecks exist, add to node
-  const newNode = (nodePos, currPathLength, inVisitedCheckpoints, lastPosition, redundantChecks, mainNode) => {
-    console.log(nodePos, lastPosition, mainNode);
-    const visitedCheckpoints = {...inVisitedCheckpoints};
+  const newNode = (nodePos, currPathLength, lastPosition, mainNode, desiredPos) => {
+    // console.log(nodePos, lastPosition, mainNode);
     // Variables to store current path length and positions above, below, left, and right of node
     let topIdx; let bottomIdx; let leftIdx; let rightIdx;
     let topValid; let bottomValid; let leftValid; let rightValid;
@@ -32,30 +53,20 @@ const expected_length = async (field, checkpointTot) => {
     // Kill Node if it hits bad value or necessary number of checkpoints (save that value to possible lengths)
     // Move node forward. Create another node with same information if junction or checkpoint reached (checkpoint adds 1 to checkpoints hit though).
     while (1 == 1) {
-      console.log('visited checkpoints', visitedCheckpoints);
-      // If current position has a checkpoint add to visited checkpoints and make it so nodes can be created in the path's last position
-      if (field[nodePos[0]][nodePos[1]].localeCompare('*') == 0) {
-        visitedCheckpoints[`${nodePos[0]},${nodePos[1]}`] = currPathLength;
-        lastPosition = null;
-      }
-      // If maximum visited checkpoints reached add to path lengths and terminate node with return
-      if (Object.keys(visitedCheckpoints).length == checkpointTot) {
-        console.log('successful checkpoints', visitedCheckpoints);
-        deQueued[mainNode] = {...deQueued[mainNode], ...visitedCheckpoints};
-        delete deQueued[mainNode][mainNode];
-        possibleLengths.push(currPathLength);
-        console.log('newpossiblelengths', possibleLengths);
-        return;
+      // If current position is the desired checkpoint return
+      if (desiredPos[0] == nodePos[0] && desiredPos[1] == nodePos[1]) {
+        return currPathLength;
       }
       // Increments path length
       currPathLength++;
-      // Updates currPosAndCheck for valid value functions
-      nodePosAndCheck = {...visitedCheckpoints, ...redundantChecks};
+      // Saves current node position and main checkpoint to variable
+      nodePosAndCheck = {};
+      nodePosAndCheck[mainNode] = 0;
       // Not letting the node go to its last position
       if (lastPosition) nodePosAndCheck[`${lastPosition[0]},${lastPosition[1]}`] = 1;
       // Resetting the last position to the current node position
       lastPosition = nodePos;
-      console.log('nodePosAndCheck', nodePosAndCheck);
+      // console.log('nodePosAndCheck', nodePosAndCheck);
       // Setting all values that can be moved to and checking if they're valid
       topIdx = [nodePos[0] - 1, nodePos[1]];
       bottomIdx = [nodePos[0] + 1, nodePos[1]];
@@ -66,23 +77,35 @@ const expected_length = async (field, checkpointTot) => {
       leftValid = validValue(leftIdx, nodePosAndCheck);
       rightValid = validValue(rightIdx, nodePosAndCheck);
       // If only one good direction move node forward
-      console.log('numValid', (topValid + bottomValid + leftValid + rightValid));
+      // console.log('numValid', (topValid + bottomValid + leftValid + rightValid));
       if ((topValid + bottomValid + leftValid + rightValid) == 1) {
         if (topValid) nodePos = topIdx;
         else if (bottomValid) nodePos = bottomIdx;
         else if (leftValid) nodePos = leftIdx;
         else nodePos = rightIdx;
-        console.log('move to ', nodePos)
+        // console.log('move to ', nodePos)
         continue;
       }
       // If no good directions terminate node
-      else if ((topValid + bottomValid + leftValid + rightValid) == 0) return;
+      else if ((topValid + bottomValid + leftValid + rightValid) == 0) return undefined;
       // If multiple good directions make new nodes going in each direction
       else {
-        if (topValid) newNode(topIdx, currPathLength, visitedCheckpoints, nodePos, redundantChecks, mainNode);
-        if (bottomValid) newNode(bottomIdx, currPathLength, visitedCheckpoints, nodePos, redundantChecks, mainNode);
-        if (leftValid) newNode(leftIdx, currPathLength, visitedCheckpoints, nodePos, redundantChecks, mainNode);
-        if (rightValid) newNode(rightIdx, currPathLength, visitedCheckpoints, nodePos, redundantChecks, mainNode);
+        if (topValid) {
+          const topReturn = newNode(topIdx, currPathLength, nodePos, mainNode, desiredPos);
+          if (topReturn != undefined) return topReturn;
+        }
+        if (bottomValid) {
+          const bottomReturn = newNode(bottomIdx, currPathLength, nodePos, mainNode, desiredPos);
+          if (bottomReturn != undefined) return bottomReturn;
+        }
+        if (leftValid) {
+          const leftReturn = newNode(leftIdx, currPathLength, nodePos, mainNode, desiredPos);
+          if (leftReturn != undefined) return leftReturn;
+        }
+        if (rightValid) {
+          const rightReturn = newNode(rightIdx, currPathLength, nodePos, mainNode, desiredPos);
+          if (rightReturn != undefined) return rightReturn;
+        }
         return;
       }
     }
@@ -90,64 +113,66 @@ const expected_length = async (field, checkpointTot) => {
 
   // Checks whether value is in bounds and defined valid by parameters
   const validValue = (position, invalidPositions) => {
-      
     if (position[0] >= height || position[0] < 0 || position[1] >= width || position[1] < 0 // Checking out of bounds
     || field[position[0]][position[1]].localeCompare('#') == 0  // Checking whether value not #
-    || invalidPositions[`${position[0]},${position[1]}`]) { // Checking that value isn't invalid position
+    || invalidPositions[`${position[0]},${position[1]}`]) { // Checking that value isn't an invalid position
       return false;
     }
     // console.log(position);
     return true;
   }
 
-  // While Loop that goes until no queue
-  while (Object.keys(queue).length != 0) {
-    // Current checkpoint variable
-    const currCheck = Object.keys(queue)[0];
-    // Array to store redundant checkpoints
-    const redundantChecks = {};
-    console.log('mainNode', currCheck);
-    console.log('deQueued Values: ', deQueued);
-    // Current checkpoint variable in numbers
-    let numCurrCheck = currCheck.split(',');
-    // Loops through numCurrCheck to make each value a number instead of string
-    for (let i = 0; i < 2; i++) {
-      numCurrCheck[i] = Number(numCurrCheck[i]);
-    }
-    // Array for deQueued keys
-    const dequeKeys = Object.keys(deQueued);
-    // Find bad checkpoints (already checked ones), by seeing which dequed values contain the currently checked node
-    for (let i = 0; i < dequeKeys.length; i++) {
-      if (deQueued[dequeKeys[i]][currCheck]) redundantChecks[dequeKeys[i]] = 1;
-    }
-    const newCheckpoint = {};
-    newCheckpoint[currCheck] = 0;
-    // Starts node at current checkpoint
-    newNode(numCurrCheck, 0, newCheckpoint, null, redundantChecks, currCheck);
-    // Removes from queue and adds to deQueue when loop is done
-    if (Object.keys(queue).length > 1) {
-      delete queue[currCheck];
-    }
-    else queue = {};
-    // console.log('currQueue',queue);
-    if (!deQueued[currCheck]) deQueued[currCheck] = {};
-  }
+  // Object to store checkpoints and their distance to each other checkpoint and corresponding array
+  const checkpointArr = Object.keys(paths);
+  const checkpoints = {};
+  findDists(checkpointArr, checkpoints);
+  console.log(checkpoints);
 
-  console.log(deQueued);
-  // Returns average of possibleLengths
-  let pathAverage = 0;
-  for (let i = 0; i < possibleLengths.length; i++) {
-    pathAverage += possibleLengths[i];
-  }
-  pathAverage /= possibleLengths.length;
-  return pathAverage;
+  // // Function to find paths to add to path object
+  // const findPaths = (currPaths, K) => {
+  //   // Constant to store currPathKeys object
+  //   const currPathKeys = Object.keys(currPaths);
+  //   // If K is equal to or less than currPaths stored checkpoints (tracked by number of ')('s), returns currPaths
+  //   if (K <= currPathKeys[0].split(')(').length) return currPaths;
+  //   // Local Object to store new paths to return
+  //   const newPaths = {};
+  //   // Variable to store current path array, object, and current path distance
+  //   let currPathChecksArr; let currPathChecksMap = new Map(); let newDist;
+  //   // Loop through each checkpoint sequence starting at index 0
+  //   for (let i = 0; i < currPathKeys.length; i++) {
+  //     // Put currPathKeys into Object to compare against
+  //     currPathChecksArr = currPathKeys[i].substring(1).slice(0, -1).split(')(');
+  //     currPathChecksArr.map(e => currPathChecksMap.set(e, 0));
+  //     console.log(currPathChecksMap);
+  //     // Loop through each checkpoint starting at index 0
+  //     for (let j = 0; j < checkpoints.length; j++) {
+  //       // If checkpoint sequence does not already exist
+
+  //       if (!currPathChecksMap[checkpoints[j]]) {
+  //         // Find distance between last checkpoint and current checkpoint
+  //         newDist = Array.from(currPathChecksMap.values()).pop();
+  //         // If newPaths has currentent path with the new checkpoint, sees if going in the opposite direction is 
+  //         Array.from(currPathChecksMap.values())[0] < newDist
+  //         // Add distance to local checkpoint distances and concatenate parent points with current point
+  //         newPaths[`${currPathKeys[i]}(${checkpoints[j]})`] += 
+  //       }
+  //     }
+  //     // Resets currPathCheckObj to empty
+  //     currPathChecksObj = {};
+  //   }
+  //   // Make recursive call with new object
+  //   // return findPaths(newPaths, K);
+  // }
+  findPaths(paths, checkpointTot);
+
+  // Find average distance of paths and return
 }
 
 expected_length([
   "*#..#",
   ".#*#.",
   "*...*"]
- , 4).then(res => console.log(res));
+ , 2).then(res => console.log(res));
  
  // K = 2
  // Returns: 3.8333333333333353
@@ -166,6 +191,182 @@ expected_length([
  //   "###################"]
  //  K = 9
  //  Returns: 30.272233648704244
+
+// Old findPaths function
+// const findPaths = (currPaths, K) => {
+//   // Constant to store currPathKeys object
+//   const currPathKeys = Object.keys(currPaths);
+//   // If K is equal to or less than currPaths stored checkpoints (tracked by number of ')('s), returns currPaths
+//   if (K <= currPathKeys[0].split(')(').length) return currPaths;
+//   // Local Object to store new paths to return
+//   const newPaths = {};
+//   // Variable to store current path array and object
+//   let currPathChecksArr; let currPathChecksObj = {}
+//   // Loop through each checkpoint sequence starting at index 0
+//   for (let i = 0; i < currPathKeys.length; i++) {
+//     // Put currPathKeys into Object to compare against
+//     currPathChecksArr = currPathKeys[i].substring(1).slice(0, -1).split(')(');
+//     currPathChecksArr.map(e => currPathChecksObj[e] = 0);
+//     console.log(currPathChecksObj);
+//     // Loop through each checkpoint starting at index 0
+//     for (let j = 0; j < checkpoints.length; j++) {
+//       // If checkpoint sequence does not already exist
+//       if (!currPathChecksObj[checkpoints[j]]) {
+//         // Find distance between last checkpoint and current checkpoint
+//         findDistance();
+//         // Add distance to local checkpoint distances and concatenate parent points with current point
+//         newPaths[`${currPathKeys[i]}(${checkpoints[j]})`]
+//       }
+//     }
+//     // Resets currPathCheckObj to empty
+//     currPathChecksObj = {};
+//   }
+//   // Make recursive call with new object
+//   // return findPaths(newPaths, K);
+// }
+
+// All wrong, finding between inputted specific checkpoints
+// const expected_length = async (field, checkpointTot) => {
+//   // Variables to store field height and width
+//   const height = field.length;
+//   const width = field[0].length;
+
+//   // Variable to store possible path lengths
+//   const possibleLengths = [];
+
+//   // Array to store all checkpoints to start at
+//   let queue = {};
+//   for (let i = 0; i < height; i++) {
+//     for (let j = 0; j < width; j++) {
+//       if (field[i][j] == '*') queue[`${i},${j}`] = 0;
+//     }
+//   }
+//   // let queue = {'0,0': 0};
+//   // Array to store all visited checkpoints and checkpoints they touched
+//   const deQueued = {};
+//   // Create new nodes going in every possible direction at each checkpoint on their initiation.
+//   // If pathlength and redundantChecks exist, add to node
+//   const newNode = (nodePos, currPathLength, inVisitedCheckpoints, lastPosition, redundantChecks, mainNode) => {
+//     console.log(nodePos, lastPosition, mainNode);
+//     const visitedCheckpoints = {...inVisitedCheckpoints};
+//     // Variables to store current path length and positions above, below, left, and right of node
+//     let topIdx; let bottomIdx; let leftIdx; let rightIdx;
+//     let topValid; let bottomValid; let leftValid; let rightValid;
+//     // Variable to store current position and checkpoints
+//     let nodePosAndCheck;
+//     // Kill Node if it hits bad value or necessary number of checkpoints (save that value to possible lengths)
+//     // Move node forward. Create another node with same information if junction or checkpoint reached (checkpoint adds 1 to checkpoints hit though).
+//     while (1 == 1) {
+//       console.log('visited checkpoints', visitedCheckpoints);
+//       // If current position has a checkpoint add to visited checkpoints and make it so nodes can be created in the path's last position
+//       if (field[nodePos[0]][nodePos[1]].localeCompare('*') == 0) {
+//         visitedCheckpoints[`${nodePos[0]},${nodePos[1]}`] = currPathLength;
+//         lastPosition = null;
+//       }
+//       // If maximum visited checkpoints reached add to path lengths and terminate node with return
+//       if (Object.keys(visitedCheckpoints).length == checkpointTot) {
+//         console.log('successful checkpoints', visitedCheckpoints);
+//         deQueued[mainNode] = {...deQueued[mainNode], ...visitedCheckpoints};
+//         delete deQueued[mainNode][mainNode];
+//         possibleLengths.push(currPathLength);
+//         console.log('newpossiblelengths', possibleLengths);
+//         return;
+//       }
+//       // Increments path length
+//       currPathLength++;
+//       // Updates currPosAndCheck for valid value functions
+//       nodePosAndCheck = {...visitedCheckpoints, ...redundantChecks};
+//       // Not letting the node go to its last position
+//       if (lastPosition) nodePosAndCheck[`${lastPosition[0]},${lastPosition[1]}`] = 1;
+//       // Resetting the last position to the current node position
+//       lastPosition = nodePos;
+//       console.log('nodePosAndCheck', nodePosAndCheck);
+//       // Setting all values that can be moved to and checking if they're valid
+//       topIdx = [nodePos[0] - 1, nodePos[1]];
+//       bottomIdx = [nodePos[0] + 1, nodePos[1]];
+//       leftIdx = [nodePos[0], nodePos[1] - 1];
+//       rightIdx = [nodePos[0], nodePos[1] + 1];
+//       topValid = validValue(topIdx, nodePosAndCheck);
+//       bottomValid = validValue(bottomIdx, nodePosAndCheck);
+//       leftValid = validValue(leftIdx, nodePosAndCheck);
+//       rightValid = validValue(rightIdx, nodePosAndCheck);
+//       // If only one good direction move node forward
+//       console.log('numValid', (topValid + bottomValid + leftValid + rightValid));
+//       if ((topValid + bottomValid + leftValid + rightValid) == 1) {
+//         if (topValid) nodePos = topIdx;
+//         else if (bottomValid) nodePos = bottomIdx;
+//         else if (leftValid) nodePos = leftIdx;
+//         else nodePos = rightIdx;
+//         console.log('move to ', nodePos)
+//         continue;
+//       }
+//       // If no good directions terminate node
+//       else if ((topValid + bottomValid + leftValid + rightValid) == 0) return;
+//       // If multiple good directions make new nodes going in each direction
+//       else {
+//         if (topValid) newNode(topIdx, currPathLength, visitedCheckpoints, nodePos, redundantChecks, mainNode);
+//         if (bottomValid) newNode(bottomIdx, currPathLength, visitedCheckpoints, nodePos, redundantChecks, mainNode);
+//         if (leftValid) newNode(leftIdx, currPathLength, visitedCheckpoints, nodePos, redundantChecks, mainNode);
+//         if (rightValid) newNode(rightIdx, currPathLength, visitedCheckpoints, nodePos, redundantChecks, mainNode);
+//         return;
+//       }
+//     }
+//   }
+
+//   // Checks whether value is in bounds and defined valid by parameters
+//   const validValue = (position, invalidPositions) => {
+      
+//     if (position[0] >= height || position[0] < 0 || position[1] >= width || position[1] < 0 // Checking out of bounds
+//     || field[position[0]][position[1]].localeCompare('#') == 0  // Checking whether value not #
+//     || invalidPositions[`${position[0]},${position[1]}`]) { // Checking that value isn't invalid position
+//       return false;
+//     }
+//     // console.log(position);
+//     return true;
+//   }
+
+//   // While Loop that goes until no queue
+//   while (Object.keys(queue).length != 0) {
+//     // Current checkpoint variable
+//     const currCheck = Object.keys(queue)[0];
+//     // Array to store redundant checkpoints
+//     const redundantChecks = {};
+//     console.log('mainNode', currCheck);
+//     console.log('deQueued Values: ', deQueued);
+//     // Current checkpoint variable in numbers
+//     let numCurrCheck = currCheck.split(',');
+//     // Loops through numCurrCheck to make each value a number instead of string
+//     for (let i = 0; i < 2; i++) {
+//       numCurrCheck[i] = Number(numCurrCheck[i]);
+//     }
+//     // Array for deQueued keys
+//     const dequeKeys = Object.keys(deQueued);
+//     // Find bad checkpoints (already checked ones), by seeing which dequed values contain the currently checked node
+//     for (let i = 0; i < dequeKeys.length; i++) {
+//       if (deQueued[dequeKeys[i]][currCheck]) redundantChecks[dequeKeys[i]] = 1;
+//     }
+//     const newCheckpoint = {};
+//     newCheckpoint[currCheck] = 0;
+//     // Starts node at current checkpoint
+//     newNode(numCurrCheck, 0, newCheckpoint, null, redundantChecks, currCheck);
+//     // Removes from queue and adds to deQueue when loop is done
+//     if (Object.keys(queue).length > 1) {
+//       delete queue[currCheck];
+//     }
+//     else queue = {};
+//     // console.log('currQueue',queue);
+//     if (!deQueued[currCheck]) deQueued[currCheck] = {};
+//   }
+
+//   console.log(deQueued);
+//   // Returns average of possibleLengths
+//   let pathAverage = 0;
+//   for (let i = 0; i < possibleLengths.length; i++) {
+//     pathAverage += possibleLengths[i];
+//   }
+//   pathAverage /= possibleLengths.length;
+//   return pathAverage;
+// }
 
 // const expected_length = async (field, checkpointTot) => {
 //   // Variables to store field height and width
